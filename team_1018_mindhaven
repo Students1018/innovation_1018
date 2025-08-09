@@ -1,0 +1,260 @@
+extra=None):
+    payload = {"event": event_type, "timestamp": time.time()}
+    if extra: payload.update(extra)
+    try:
+        requests.post(BACKEND_URL, json=payload, timeout=2)
+    except requests.exceptions.RequestException:
+        # backend might be down during quick demos; ignore
+        pass
+
+def main():
+    cap = cv2.VideoCapture(0)
+    last_face_time = time.time()
+    distracted = False
+
+    if not cap.isOpened():
+        print("Cannot open webcam. Exiting.")
+        return
+
+    print("Focus detector running. Press 'q' to quit.")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60,60))
+
+        now = time.time()
+        if len(faces) > 0:
+            last_face_time = now
+            if distracted:
+                distracted = False
+                print("[+] Focus regained")
+                send_event("focus_gained")
+        else:
+            # no faces found
+            if now - last_face_time > ABSENT_THRESHOLD and not distracted:
+                distracted = True
+                print("[-] Distracted / Away detected")
+                send_event("focus_lost", {"duration": now - last_face_time})
+
+   =
+        for (x,y,w,h) in faces:
+            cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+        cv2.putText(frame, f"Faces: {len(faces)}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255),2)
+        cv2.imshow("FocusDetector (press q to quit)", frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+        time.sleep(FRAME_CHECK_INTERVAL)
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
+
+# app.py
+from flask import Flask, request, jsonify, g, send_from_directory
+import sqlite3
+import time
+import os
+from threading import Thread
+
+DB_PATH = 'focusflow.db'
+app = Flask(__name__, static_folder='static', static_url_path='/static')
+
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DB_PATH)
+    return db
+
+def init_db():
+    if not os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event TEXT,
+                timestamp REAL,
+                info TEXT
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+@app.teardown_appcontextimport cv2
+import time
+import requests
+
+BACKEND_URL = "http://127.0.0.1:5000/event"  # backend endpoint
+
+# Parameters (tweak during demo)
+FRAME_CHECK_INTERVAL = 1.0   # seconds between checks
+ABSENT_THRESHOLD = 5         # seconds of no face -> considered distracted
+
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+def send_event(event_type, 
+def close_connection(exception):
+    db = getattr(g, '_database', None)
+    if db: db.close()
+
+@app.route('/event', methods=['POST'])
+def receive_event():
+    data = request.get_json()
+    event = data.get('event', 'unknown')
+    ts = data.get('timestamp', time.time())
+    info = str({k:v for k,v in data.items() if k not in ('event','timestamp')})
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('INSERT INTO events (event,timestamp,info) VALUES (?, ?, ?)', (event, ts, info))
+    conn.commit()
+
+    # Fire IoT action in background for demo (e.g., dim light on focus_lost)
+    if event == 'focus_lost':
+        Thread(target=mock_iot_action, args=('dim_lights',)).start()
+    return jsonify({"status":"ok"})
+
+@app.route('/events', methods=['GET'])
+def list_events():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id,event,timestamp,info FROM events ORDER BY id DESC LIMIT 50')
+    rows = c.fetchall()
+    events = [{"id":r[0],"event":r[1],"timestamp":r[2],"info":r[3]} for r in rows]
+    return jsonify(events)
+
+@app.route('/analytics', methods=['GET'])
+def analytics():
+    # simple analytics: count focus_lost events
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM events WHERE event='focus_lost'")
+    lost_count = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM events WHERE event='focus_gained'")
+    gained_count = c.fetchone()[0]
+    return jsonify({"focus_lost": lost_count, "focus_gained": gained_count})
+
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
+
+def mock_iot_action(action):
+    # Demo-only: simulate an IoT device change (print + could call real APIs)
+    print(f"[IoT] Performing mock action: {action}")
+    # Simulate time delay
+    time.sleep(1)
+    # For a better demo, we could write to a file or call a local script
+    print(f"[IoT] Action {action} completed.")
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True)
+
+<!-- index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FocusFlow Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .box { border: 1px solid #ddd; padding: 16px; margin-bottom: 12px; border-radius: 8px; }
+    #events { max-height: 200px; overflow:auto; }
+    button { padding: 8px 12px; margin-right:8px; }
+  </style>
+</head>
+<body>
+  <h1>FocusFlow — Demo Dashboard</h1>
+
+  <div class="box">
+    <h3>Pomodoro</h3>
+    <div>
+      <span id="timer">25:00</span>
+      <button onclick="startPomodoro()">Start</button>
+      <button onclick="stopPomodoro()">Stop</button>
+      <button onclick="resetPomodoro()">Reset</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>Recent Events</h3>
+    <div id="events">Loading...</div>
+    <button onclick="fetchEvents()">Refresh</button>
+  </div>
+
+  <div class="box">
+    <h3>Analytics</h3>
+    <canvas id="analyticsChart" width="400" height="150"></canvas>
+    <button onclick="fetchAnalytics()">Refresh</button>
+  </div>
+
+<script>
+let timerInterval = null;
+let timeLeft = 25 * 60; // 25 minutes
+
+function formatTime(s) {
+  let m = Math.floor(s/60);
+  let sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+document.getElementById('timer').innerText = formatTime(timeLeft);
+
+function startPomodoro() {
+  if (timerInterval) return;
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById('timer').innerText = formatTime(timeLeft);
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      alert("Pomodoro finished! Take a break.");
+      // Could call backend to log session end
+    }
+  }, 1000);
+}
+function stopPomodoro() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
+function resetPomodoro() { stopPomodoro(); timeLeft = 25*60; document.getElementById('timer').innerText = formatTime(timeLeft); }
+
+async function fetchEvents() {
+  const res = await fetch('/events');
+  const events = await res.json();
+  const container = document.getElementById('events');
+  container.innerHTML = '';
+  events.forEach(e => {
+    const d = new Date(e.timestamp*1000);
+    const el = document.createElement('div');
+    el.innerText = `[${d.toLocaleTimeString()}] ${e.event} ${e.info}`;
+    container.appendChild(el);
+  });
+}
+async function fetchAnalytics() {
+  const res = await fetch('/analytics');
+  const d = await res.json();
+  renderChart(d.focus_lost, d.focus_gained);
+}
+let chart = null;
+function renderChart(lost, gained) {
+  const ctx = document.getElementById('analyticsChart').getContext('2d');
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Focus Lost', 'Focus Gained'],
+      datasets: [{ label: 'Events', data: [lost, gained] }]
+    }
+  });
+}
+
+// initial load
+fetchEvents(); fetchAnalytics();
+</script>
+</body>
+</html>
+
