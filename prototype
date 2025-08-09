@@ -1,0 +1,227 @@
+online
+Theme Connection:
+AURA (Automated, Unified, Resourceful, Accessible) → for ADHD, this means automating focus aids, unifying support systems, making resource management easier, and ensuring accessibility in learning & work.
+
+Problems Faced by People with ADHD
+Time Blindness – Losing track of time, missing deadlines.
+
+Task Initiation Struggles – Difficulty starting boring or overwhelming tasks.
+
+Sensory Overload – Crowded, noisy, or distracting environments make focusing impossible.
+
+Forgetfulness – Forgetting meetings, assignments, important steps in tasks.
+
+Inconsistent Energy – Big bursts of productivity followed by burnout.
+
+Unique Innovation Ideas
+AI Chrono-Coach (Assistive Automation)
+Detects when the user is in a high-focus vs. low-focus state using we…Read more
+11:39 pm
+www.canva.com
+https://www.canva.com/design/DAGvmmiKkTc/REdgQkWntMdHqacp_-qtJg/edit?utm_content=DAGvmmiKkTc&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
+www.canva.com
+https://www.canva.com/design/DAGvmmiKkTc/REdgQkWntMdHqacp_-qtJg/edit?utm_content=DAGvmmiKkTc&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
+11:44 pm
+my3hanmaan
+11:46 pm
+Today
+Got it — you want a *hackathon-ready prototype plan* for an ADHD-focused project under the *AURA* theme, just like how I gave for the Smart Resource Guardian.
+
+Here’s the *fully fleshed-out idea*:
+
+---
+
+## *Project Name*
+
+*FocusFlow* – AI + IoT Powered Support System for ADHD
+
+---
+
+## *Theme Connection (AURA)*
+
+*Automated:* Automates focus reminders, breaks, and environment adjustments.
+*Unified:* Combines multiple ADHD aids (timers, reminders, sensory control) into one system.
+*Resourceful:* Optimizes energy & time usage by tracking focus patterns.
+*Accessible:* Customizable for individual needs & easy to use on mobile or desktop.
+
+---
+
+## *Problem Statement*
+
+People with ADHD face challenges that hinder academic and workplace performance:
+
+*Time Blind
+…Read more
+12:01 am
+https://forms.gle/SSHimfBHgJkm2CEGA
+12:10 am
+MindHaven.pptx
+12:12 am
+github.com
+https://github.com/Students1018/innovation_1018/blob/main/MindHaven.pptx
+github.com
+https://github.com/Students1018/innovation_1018/blob/main/MindHaven.pptx
+12:13 am
+This message was deleted
+12:20 am
+This message was deleted
+12:20 am
+This message was deleted
+12:20 am
+# focus_detector.py
+# Simple webcam focus detector using OpenCV Haar cascade face detection.
+# Sends HTTP POST to backend when user is absent/distracted.
+
+import cv2
+import time
+import requests
+
+BACKEND_URL = "http://127.0.0.1:5000/event"  # backend endpoint
+
+# Parameters (tweak during demo)
+FRAME_CHECK_INTERVAL = 1.0   # seconds between checks
+ABSENT_THRESHOLD = 5         # seconds of no face -> considered distracted
+
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+def send_event(event_type, extra=None):
+    payload = {"event": event_type, "timestamp": time.time()}
+    if extra: payload.update(extra)
+    try:
+        requests.post(BACKEND_URL, json=payload, timeout=2)
+    except requests.exceptions.Reques…Read more
+12:21 am
+# app.py
+from flask import Flask, request, jsonify, g, send_from_directory
+import sqlite3
+import time
+import os
+from threading import Thread
+
+DB_PATH = 'focusflow.db'
+app = Flask(_name_, static_folder='static', static_url_path='/static')
+
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DB_PATH)
+    return db
+
+def init_db():
+    if not os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event TEXT,
+                timestamp REAL,
+                info TEXT
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+@app.t…Read more
+12:21 am
+<!-- index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FocusFlow Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .box { border: 1px solid #ddd; padding: 16px; margin-bottom: 12px; border-radius: 8px; }
+    #events { max-height: 200px; overflow:auto; }
+    button { padding: 8px 12px; margin-right:8px; }
+  </style>
+</head>
+<body>
+  <h1>FocusFlow — Demo Dashboard</h1>
+
+  <div class="box">
+    <h3>Pomodoro</h3>
+    <div>
+      <span id="timer">25:00</span>
+      <button onclick="startPomodoro()">Start</button>
+      <button onclick="stopPomodoro()">Stop</button>
+      <button onclick="resetPomodoro()">Reset</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>Recent Events</h3>
+    <div id="events">Loading...</div>
+    <button onclick="fetchEvents()">Refresh</button>
+  </div>
+
+  <div class="box">
+    <h3>Analytics</h3>
+    <canvas id="analyticsChart" width="400" height="150"></canvas>
+    <button onclick="fetchAnalytics()">Refresh</button>
+  </div>
+
+<script>
+let timerInterval = null;
+let timeLeft = 25 * 60; // 25 minutes
+
+function formatTime(s) {
+  let m = Math.floor(s/60);
+  let sec = s % 60;
+  return ${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')};
+}
+document.getElementById('timer').innerText = formatTime(timeLeft);
+
+function startPomodoro() {
+  if (timerInterval) return;
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById('timer').innerText = formatTime(timeLeft);
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      alert("Pomodoro finished! Take a break.");
+      // Could call backend to log session end
+    }
+  }, 1000);
+}
+function stopPomodoro() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
+function resetPomodoro() { stopPomodoro(); timeLeft = 25*60; document.getElementById('timer').innerText = formatTime(timeLeft); }
+
+async function fetchEvents() {
+  const res = await fetch('/events');
+  const events = await res.json();
+  const container = document.getElementById('events');
+  container.innerHTML = '';
+  events.forEach(e => {
+    const d = new Date(e.timestamp*1000);
+    const el = document.createElement('div');
+    el.innerText = [${d.toLocaleTimeString()}] ${e.event} ${e.info};
+    container.appendChild(el);
+  });
+}
+async function fetchAnalytics() {
+  const res = await fetch('/analytics');
+  const d = await res.json();
+  renderChart(d.focus_lost, d.focus_gained);
+}
+let chart = null;
+function renderChart(lost, gained) {
+  const ctx = document.getElementById('analyticsChart').getContext('2d');
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Focus Lost', 'Focus Gained'],
+      datasets: [{ label: 'Events', data: [lost, gained] }]
+    }
+  });
+}
+
+// initial load
+fetchEvents(); fetchAnalytics();
+</script>
+</body>
+</html>
